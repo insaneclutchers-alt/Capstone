@@ -437,3 +437,60 @@ eventRouter.delete("/:id/unregister/:studentid", async(req,res)=>{
         })
     }
 })
+eventRouter.get("/:eventId/participants", authorizeRoles(
+    "admin",
+    "hod",
+    "facultyCoordinator",
+    "clubCoordinator",
+    "classCoordinator"
+), async (req, res) => {
+    try {
+        const { eventId } = req.params;
+
+        const event = await EventModel.findById(eventId)
+            .populate(
+                "registeredStudents",
+                "firstName lastName rollNumber department section year email"
+            );
+
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: "Event not found"
+            });
+        }
+
+        const students = event.registeredStudents.map((student, index) => ({
+            serialNumber: index + 1,
+            fullName: [student.firstName, student.lastName]
+                .filter(Boolean)
+                .join(" "),
+            rollNumber: student.rollNumber,
+            department: student.department,
+            section: student.section,
+            year: student.year,
+            email: student.email
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: "Registered student list retrieved successfully",
+            eventName: event.eventName,
+            totalParticipants: students.length,
+            data: students
+        });
+    } catch (err) {
+        if (err.name === "CastError") {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid event ID"
+            });
+        }
+
+        console.error("Failed to fetch participants:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch registered students"
+        });
+    }
+});
