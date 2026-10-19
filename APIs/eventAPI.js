@@ -132,6 +132,63 @@ eventRouter.get("/club/:clubid",async(req,res)=>{
     }
 })
 
+eventRouter.get(
+    "/events-with-participants",
+    authorizeRoles(
+        "admin",
+        "hod",
+        "facultyCoordinator",
+        "clubCoordinator",
+        "classCoordinator"
+    ),
+    async (req, res) => {
+        try {
+            const events = await EventModel.find().populate(
+                "registeredStudents",
+                "firstName lastName rollNumber department section year email"
+            );
+
+            const result = events.map((event) => {
+                const eventData = event.toObject();
+
+                const students = event.registeredStudents.map(
+                    (student, index) => ({
+                        serialNumber: index + 1,
+                        fullName: [student.firstName, student.lastName]
+                            .filter(Boolean)
+                            .join(" "),
+                        rollNumber: student.rollNumber,
+                        department: student.department,
+                        section: student.section,
+                        year: student.year,
+                        email: student.email
+                    })
+                );
+
+                return {
+                    ...eventData,
+                    totalParticipants: students.length,
+                    registeredStudents: students
+                };
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "All events and participants retrieved successfully",
+                totalEvents: result.length,
+                data: result
+            });
+        } catch (err) {
+            console.error("Failed to fetch events with participants:", err);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to fetch events with participants"
+            });
+        }
+    }
+);
+
 // GET /:id/students : Only authorized staff should see the participant list
 eventRouter.get("/:id/students", authorizeRoles("admin", "hod", "facultyCoordinator", "clubCoordinator", "classCoordinator"), async(req,res)=>{
     try{
